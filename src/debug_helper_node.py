@@ -3,6 +3,7 @@
 import os
 import re
 import shutil
+import uuid
 import xml.etree.ElementTree as ET
 import rclpy
 from rclpy.node import Node
@@ -20,7 +21,8 @@ class DebugHelperNode(Node):
         self.declare_parameter('collected_commands_file', 'collected_commands.txt')
 
         # Retrieve parameters
-        self.workspace_directory = self.get_workspace_directory()
+        # self.workspace_directory = self.get_workspace_directory()
+        self.workspace_directory = "/home/xkuo/rtabmap_ws"
         self.log_subdirectory = self.get_parameter('log_subdirectory').get_parameter_value().string_value
         self.script_output_subdir = self.get_parameter('script_output_subdir').get_parameter_value().string_value
         self.xml_output_subdir = self.get_parameter('xml_output_subdir').get_parameter_value().string_value
@@ -182,6 +184,52 @@ class DebugHelperNode(Node):
             self.get_logger().info(f"XML file generated: {self.xml_output_file}")
         except Exception as e:
             self.get_logger().error(f"Failed to generate XML file: {e}")
+    def generate_custom_targets_from_external_tools(self):
+        """从 External Tools.xml 文件读取内容并生成 customTargets.xml 文件"""
+        external_tools_file = self.xml_output_file  # External Tools.xml 文件路径
+        # custom_targets_file = os.path.join(self.workspace_directory, self.xml_output_subdir, 'customTargets.xml')  # 输出路径
+        custom_targets_file  = os.path.join(self.build_directory, ".idea", "customTargets.xml")
+        try:
+            # 检查 External Tools.xml 是否存在
+            if not os.path.exists(external_tools_file):
+                self.get_logger().error(f"External Tools.xml 文件不存在: {external_tools_file}")
+                return
+
+            # 解析 External Tools.xml 文件
+            tree = ET.parse(external_tools_file)
+            root = tree.getroot()
+
+            # 创建 customTargets.xml 的根节点
+            project = ET.Element("project", version="4")
+            component = ET.SubElement(project, "component", name="CLionExternalBuildManager")
+
+            # 遍历 External Tools.xml 的 tool 节点
+            for tool in root.findall("tool"):
+                tool_name = tool.get("name")
+                if not tool_name:
+                    self.get_logger().warning("跳过没有 name 属性的 tool 标签")
+                    continue
+
+                # 为每个 tool 生成 target 节点和 configuration 节点
+                target_id = str(uuid.uuid4())  # 生成唯一 ID
+                config_id = str(uuid.uuid4())
+
+                target = ET.SubElement(component, "target", id=target_id, name=tool_name, defaultType="TOOL")
+                configuration = ET.SubElement(target, "configuration", id=config_id, name=tool_name)
+                build = ET.SubElement(configuration, "build", type="TOOL")
+                ET.SubElement(build, "tool", actionId=f"Tool_External Tools_{tool_name}")
+
+            # 美化 XML
+            self.prettify_xml_with_indent(project)
+
+            # 写入 customTargets.xml 文件
+            tree = ET.ElementTree(project)
+            tree.write(custom_targets_file, xml_declaration=True, encoding="UTF-8")
+            self.get_logger().info(f"customTargets.xml 文件生成成功: {custom_targets_file}")
+
+        except Exception as e:
+            self.get_logger().error(f"生成 customTargets.xml 时发生错误: {e}")
+
 
     def copy_scripts_to_build_directory(self):
         destination = os.path.join(self.build_directory, 'build_scripts')
@@ -198,5 +246,6 @@ class DebugHelperNode(Node):
         # self.save_log_data(log_data)
         self.create_build_scripts(log_data)
         self.generate_xml_from_scripts()
+        self.generate_custom_targets_from_external_tools()
         # self.copy_scripts_to_build_directory()
 
