@@ -21,8 +21,8 @@ class DebugHelperNode(Node):
         self.declare_parameter('collected_commands_file', 'collected_commands.txt')
 
         # Retrieve parameters
-        # self.workspace_directory = self.get_workspace_directory()
-        self.workspace_directory = "/home/xkuo/rtabmap_ws"
+        self.workspace_directory = self.get_workspace_directory()
+        # self.workspace_directory = "/home/xkuo/rtabmap_ws"
         self.log_subdirectory = self.get_parameter('log_subdirectory').get_parameter_value().string_value
         self.script_output_subdir = self.get_parameter('script_output_subdir').get_parameter_value().string_value
         self.xml_output_subdir = self.get_parameter('xml_output_subdir').get_parameter_value().string_value
